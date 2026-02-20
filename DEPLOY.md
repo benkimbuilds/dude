@@ -30,9 +30,9 @@
 5. **Deploy**
 
    Railway builds from the Dockerfile automatically on push. Once deployed:
-   - Web UI: `https://your-app.up.railway.app`
-   - MCP endpoint: `https://your-app.up.railway.app/mcp`
-   - Health check: `https://your-app.up.railway.app/health`
+   - Web UI: `https://dude-production.up.railway.app`
+   - MCP endpoint: `https://dude-production.up.railway.app/mcp`
+   - Health check: `https://dude-production.up.railway.app/health`
 
 6. **Custom domain (optional)**
 
@@ -53,7 +53,7 @@ docker run -p 3333:3333 -v dude_data:/data dude-simulator
 Connect your MCP client to the deployed URL:
 
 ```bash
-claude mcp add dude --transport http https://your-domain.com/mcp
+claude mcp add dude --transport http https://dude-production.up.railway.app/mcp
 ```
 
 Or in `mcp.json`:
@@ -63,7 +63,7 @@ Or in `mcp.json`:
   "mcpServers": {
     "dude": {
       "type": "http",
-      "url": "https://your-domain.com/mcp"
+      "url": "https://dude-production.up.railway.app/mcp"
     }
   }
 }
@@ -74,6 +74,6 @@ Or in `mcp.json`:
 All platforms can use `GET /health` for uptime monitoring:
 
 ```
-https://your-domain.com/health
+https://dude-production.up.railway.app/health
 → {"status":"ok","game":"dude-simulator","version":"0.1.0"}
 ```

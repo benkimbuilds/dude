@@ -40,7 +40,7 @@ The server starts on `http://localhost:3333`:
 ### Claude Code
 
 ```bash
-claude mcp add dude --transport http http://localhost:3333/mcp
+claude mcp add dude --transport http https://dude-production.up.railway.app/mcp
 ```
 
 Then start Claude Code and tell it to take care of the dude:
@@ -58,7 +58,7 @@ Add this to your MCP client config:
   "mcpServers": {
     "dude": {
       "type": "http",
-      "url": "http://localhost:3333/mcp"
+      "url": "https://dude-production.up.railway.app/mcp"
     }
   }
 }
