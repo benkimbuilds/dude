@@ -253,11 +253,24 @@ function updateCat(): void {
       break;
     }
     case 'follow': {
-      // Move toward the dude
+      // CONSEQUENCE: hygiene=0 — cat refuses to follow, runs away instead
+      if (dude.stats.hygiene <= 0) {
+        // Move AWAY from the dude
+        if (Math.abs(cat.x - dude.x) + Math.abs(cat.y - dude.y) < 5) {
+          const dx = -Math.sign(dude.x - cat.x);
+          const dy = -Math.sign(dude.y - cat.y);
+          if (dx !== 0 && isWalkable(cat.x + dx, cat.y)) {
+            cat.x += dx;
+          } else if (dy !== 0 && isWalkable(cat.x, cat.y + dy)) {
+            cat.y += dy;
+          }
+        }
+        break;
+      }
+      // Normal follow behavior
       if (Math.abs(cat.x - dude.x) + Math.abs(cat.y - dude.y) > 2) {
         const dx = Math.sign(dude.x - cat.x);
         const dy = Math.sign(dude.y - cat.y);
-        // Try horizontal first, then vertical
         if (dx !== 0 && isWalkable(cat.x + dx, cat.y)) {
           cat.x += dx;
         } else if (dy !== 0 && isWalkable(cat.x, cat.y + dy)) {
@@ -293,14 +306,37 @@ function updateCat(): void {
 function gameTick(): void {
   tick++;
 
-  // 1. Decay stats
+  // 1. Decay stats (with consequences for depleted stats)
   if (!dude.collapsed) {
     for (const key of STAT_KEYS) {
-      dude.stats[key] = Math.max(0, dude.stats[key] + STAT_DECAY[key]);
+      let decay = STAT_DECAY[key];
+
+      // CONSEQUENCE: hunger=0 makes energy decay 2x faster
+      if (key === 'energy' && dude.stats.hunger <= 0) {
+        decay *= 2;
+      }
+
+      dude.stats[key] = Math.max(0, dude.stats[key] + decay);
     }
   }
 
-  // 2. Check for collapse
+  // 2. Depletion alerts (fire once when stat first hits 0)
+  for (const key of STAT_KEYS) {
+    if (dude.stats[key] <= 0 && !depletedAlerted.has(key)) {
+      depletedAlerted.add(key);
+      switch (key) {
+        case 'hunger': emitEvent('The dude is starving! Energy draining fast...', '🤢'); break;
+        case 'thirst': emitEvent('The dude is dehydrated! Moving sluggishly...', '🥵'); break;
+        case 'fun':    emitEvent('The dude is bored out of his mind! Everything feels slower...', '😩'); break;
+        case 'hygiene': emitEvent('The dude reeks! The cat is keeping its distance...', '🦨'); break;
+        case 'social': emitEvent('The dude feels completely isolated...', '😔'); break;
+      }
+    } else if (dude.stats[key] > 5 && depletedAlerted.has(key)) {
+      depletedAlerted.delete(key);
+    }
+  }
+
+  // 3. Check for collapse (energy = 0)
   if (dude.stats.energy <= 0 && !dude.collapsed) {
     dude.collapsed = true;
     dude.currentActivity = 'sleep';
@@ -312,13 +348,17 @@ function gameTick(): void {
     emitEvent('The dude collapsed from exhaustion!', '😵');
   }
 
-  // 3. Process movement & activity
+  // 4. Process movement & activity
   if (dude.currentActivity) {
     if (dude.path.length > 0) {
-      // Walking to target
-      const next = dude.path.shift()!;
-      dude.x = next.x;
-      dude.y = next.y;
+      // CONSEQUENCE: thirst=0 makes dude move every other tick (sluggish)
+      const skipMove = dude.stats.thirst <= 0 && tick % 2 === 0;
+
+      if (!skipMove) {
+        const next = dude.path.shift()!;
+        dude.x = next.x;
+        dude.y = next.y;
+      }
 
       if (dude.path.length === 0) {
         const actDef = ACTIVITIES[dude.currentActivity];
@@ -328,7 +368,13 @@ function gameTick(): void {
       }
     } else {
       // Performing activity
-      dude.activityProgress++;
+      // CONSEQUENCE: fun=0 makes activities take longer (progress every other tick)
+      const slowActivity = dude.stats.fun <= 0 && tick % 2 === 0;
+
+      if (!slowActivity) {
+        dude.activityProgress++;
+      }
+
       if (dude.activityProgress >= dude.activityDuration) {
         if (dude.collapsed) {
           dude.stats.energy = Math.min(100, dude.stats.energy + 30);
@@ -344,14 +390,26 @@ function gameTick(): void {
     }
   }
 
-  // 4. Update cat
+  // 5. CONSEQUENCE: social=0 — auto-walk to window every ~30s (10 ticks)
+  if (dude.stats.social <= 0 && !dude.currentActivity && !dude.collapsed) {
+    socialAutoWalkCooldown--;
+    if (socialAutoWalkCooldown <= 0) {
+      socialAutoWalkCooldown = 10;
+      startActivity('look_outside');
+      emitEvent('The dude wanders to the window, feeling lonely...', '🪟');
+    }
+  } else {
+    socialAutoWalkCooldown = 3; // reset when social is fine
+  }
+
+  // 6. Update cat
   updateCat();
 
-  // 5. Save state
+  // 7. Save state
   saveDudeState(dude);
   saveCatState(cat);
 
-  // 6. Broadcast
+  // 8. Broadcast
   broadcastState();
 }
 
@@ -395,7 +453,18 @@ export function getFullState(): FullGameState {
     events: getRecentEvents(),
     journalEntries: getJournalEntries(),
     tick,
+    depletedStats: getDepletedStats(),
   };
+}
+
+export function getDepletionWarnings(): string[] {
+  const warnings: string[] = [];
+  if (dude.stats.hunger <= 0) warnings.push('⚠️ STARVING — energy decays 2x faster!');
+  if (dude.stats.thirst <= 0) warnings.push('⚠️ DEHYDRATED — movement is sluggish!');
+  if (dude.stats.fun <= 0)    warnings.push('⚠️ BORED — activities take twice as long!');
+  if (dude.stats.hygiene <= 0) warnings.push('⚠️ STINKY — the cat is avoiding him!');
+  if (dude.stats.social <= 0) warnings.push('⚠️ LONELY — he keeps wandering to the window...');
+  return warnings;
 }
 
 export function getDudeStatus(): string {
@@ -421,6 +490,7 @@ export function getDudeStatus(): string {
     `  Social:  ${'█'.repeat(Math.round(dude.stats.social / 5))}${'░'.repeat(20 - Math.round(dude.stats.social / 5))} ${Math.round(dude.stats.social)}/100`,
     dude.musicUrl ? `\nMusic: ${dude.musicUrl}` : '',
     dude.collapsed ? '\n⚠️ COLLAPSED — auto-sleeping!' : '',
+    ...getDepletionWarnings(),
   ].filter(Boolean).join('\n');
 }
 
@@ -550,5 +620,7 @@ export function getRoomState(): object {
       height: ROOM_HEIGHT,
     },
     tick,
+    depletedStats: getDepletedStats(),
+    activeConsequences: getDepletionWarnings(),
   };
 }

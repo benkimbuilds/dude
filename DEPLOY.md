@@ -48,47 +48,6 @@ docker build -t dude-simulator .
 docker run -p 3333:3333 -v dude_data:/data dude-simulator
 ```
 
-## Fly.io
-
-```bash
-# Install flyctl
-brew install flyctl
-
-# Launch (creates fly.toml)
-fly launch --no-deploy
-
-# Create a persistent volume
-fly volumes create dude_data --size 1 --region ord
-
-# Add to fly.toml:
-# [mounts]
-#   source = "dude_data"
-#   destination = "/data"
-
-# Deploy
-fly deploy
-```
-
-## VPS / bare metal
-
-```bash
-# Clone and build
-git clone https://github.com/benkimbuilds/dude.git
-cd dude
-npm install
-npm run build
-
-# Run with persistent data dir
-DATA_DIR=./data NODE_ENV=production npm start
-```
-
-Use a process manager like `pm2` to keep it running:
-
-```bash
-npm install -g pm2
-DATA_DIR=./data pm2 start dist/index.js --name dude-simulator
-```
-
 ## After deploying
 
 Connect your MCP client to the deployed URL:

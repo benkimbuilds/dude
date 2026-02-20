@@ -751,6 +751,11 @@ function drawDude(x, y) {
   if (state && state.dude.currentActivity && state.dude.path.length === 0) {
     drawActivityEffects(px, py + by);
   }
+
+  // Depletion effects (drawn on top of dude when stats are at 0)
+  if (state && state.depletedStats && state.depletedStats.length > 0) {
+    drawDepletionEffects(px, py + by);
+  }
 }
 
 function drawCat(x, y, behavior) {
@@ -931,6 +936,134 @@ function drawActivityEffects(px, py) {
         R(px+4+i*16, py-4-Math.sin(t*0.04+i)*3, 3, 3, `rgba(200,200,255,${0.3+Math.sin(t*0.06+i)*0.15})`);
       }
       break;
+  }
+}
+
+// ── Depletion Effects ────────────────────────────
+
+function drawDepletionEffects(px, py) {
+  if (!state || !state.depletedStats) return;
+  const t = animFrame;
+  const depleted = state.depletedStats;
+
+  // Stack effects vertically so they don't overlap
+  let yOffset = -14;
+
+  // HUNGER: stomach growl — wavy lines around belly
+  if (depleted.includes('hunger')) {
+    for (let i = 0; i < 3; i++) {
+      const wave = Math.sin(t * 0.15 + i * 2) * 6;
+      ctx.strokeStyle = `rgba(255, 200, 50, ${0.5 + Math.sin(t * 0.1 + i) * 0.3})`;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(px - 2 + wave, py + 18 + i * 4);
+      ctx.quadraticCurveTo(px + 8, py + 16 + i * 4 + wave * 0.5, px + 16 - wave, py + 18 + i * 4);
+      ctx.stroke();
+    }
+    // Rumble icon
+    ctx.fillStyle = `rgba(255, 200, 50, ${0.6 + Math.sin(t * 0.2) * 0.4})`;
+    ctx.font = '10px serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('gurgle', px + 16, py + yOffset);
+    yOffset -= 12;
+    ctx.textAlign = 'left';
+  }
+
+  // THIRST: dizzy swirls above head
+  if (depleted.includes('thirst')) {
+    for (let i = 0; i < 3; i++) {
+      const angle = t * 0.08 + i * (Math.PI * 2 / 3);
+      const r = 10 + Math.sin(t * 0.05) * 3;
+      const sx = px + 16 + Math.cos(angle) * r;
+      const sy = py + yOffset + Math.sin(angle) * 5;
+      ctx.fillStyle = `rgba(100, 180, 255, ${0.6 + Math.sin(t * 0.1 + i) * 0.3})`;
+      ctx.font = 'bold 10px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText('*', sx, sy);
+    }
+    // Sweat drop
+    const dropY = py + 6 + Math.sin(t * 0.12) * 2;
+    ctx.fillStyle = 'rgba(100, 180, 255, 0.8)';
+    ctx.beginPath();
+    ctx.moveTo(px + 26, dropY);
+    ctx.quadraticCurveTo(px + 30, dropY + 6, px + 26, dropY + 8);
+    ctx.quadraticCurveTo(px + 22, dropY + 6, px + 26, dropY);
+    ctx.fill();
+    yOffset -= 12;
+    ctx.textAlign = 'left';
+  }
+
+  // FUN: rain cloud above head
+  if (depleted.includes('fun')) {
+    const cx = px + 16;
+    const cy = py + yOffset;
+
+    // Cloud
+    ctx.fillStyle = 'rgba(120, 120, 140, 0.8)';
+    ctx.beginPath();
+    ctx.arc(cx - 6, cy, 6, 0, Math.PI * 2);
+    ctx.arc(cx + 6, cy, 6, 0, Math.PI * 2);
+    ctx.arc(cx, cy - 4, 7, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Rain drops
+    for (let i = 0; i < 4; i++) {
+      const rx = cx - 8 + i * 5;
+      const ry = cy + 6 + (t * 1.5 + i * 7) % 14;
+      ctx.fillStyle = 'rgba(100, 150, 220, 0.7)';
+      R(rx, ry, 1, 3);
+    }
+    yOffset -= 18;
+  }
+
+  // HYGIENE: green stink lines
+  if (depleted.includes('hygiene')) {
+    for (let i = 0; i < 4; i++) {
+      const sx = px + 2 + i * 8;
+      const wiggle = Math.sin(t * 0.1 + i * 1.2) * 4;
+      ctx.strokeStyle = `rgba(120, 200, 50, ${0.4 + Math.sin(t * 0.08 + i) * 0.25})`;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(sx, py + 5);
+      ctx.quadraticCurveTo(sx + wiggle, py - 2, sx - wiggle * 0.5, py - 10);
+      ctx.quadraticCurveTo(sx + wiggle * 0.8, py - 16, sx - wiggle, py - 22);
+      ctx.stroke();
+    }
+    // Small flies
+    for (let i = 0; i < 2; i++) {
+      const fx = px + 10 + Math.sin(t * 0.13 + i * 3) * 14;
+      const fy = py - 4 + Math.cos(t * 0.17 + i * 2) * 8;
+      R(fx, fy, 2, 2, 'rgba(80, 80, 40, 0.7)');
+      R(fx - 1, fy - 1, 1, 1, 'rgba(180, 180, 160, 0.5)');
+      R(fx + 2, fy - 1, 1, 1, 'rgba(180, 180, 160, 0.5)');
+    }
+  }
+
+  // SOCIAL: thought bubble with "..."
+  if (depleted.includes('social')) {
+    const bx = px + 28;
+    const by = py + yOffset - 2;
+
+    // Thought trail dots
+    ctx.fillStyle = 'rgba(200, 200, 220, 0.6)';
+    ctx.beginPath(); ctx.arc(px + 24, py + 2, 2, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(px + 27, py - 3, 3, 0, Math.PI * 2); ctx.fill();
+
+    // Thought bubble
+    ctx.fillStyle = 'rgba(200, 200, 220, 0.7)';
+    ctx.beginPath();
+    ctx.arc(bx + 2, by, 10, 0, Math.PI * 2);
+    ctx.fill();
+
+    // "..."
+    ctx.fillStyle = 'rgba(80, 80, 100, 0.9)';
+    const dotBounce = Math.sin(t * 0.08) * 1.5;
+    for (let i = 0; i < 3; i++) {
+      const dy = i === 1 ? dotBounce : -dotBounce;
+      ctx.beginPath();
+      ctx.arc(bx - 4 + i * 4, by + dy, 1.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
   }
 }
 

@@ -9,7 +9,7 @@ import type { Request, Response } from 'express';
 import {
   startActivity, stopActivity, getFullState, getDudeStatus, getLookView,
   setMusicUrl, stopMusic, renameDude, getCatStatus,
-  writeJournal, readJournal, feedDude, getRoomState,
+  writeJournal, readJournal, feedDude, getRoomState, getDepletionWarnings,
 } from './game-engine.js';
 import { ACTIVITIES } from './types.js';
 
@@ -24,7 +24,7 @@ function createMcpServer(): McpServer {
   // ── 1. status ─────────────────────────────────
   server.tool(
     'status',
-    'Get the dude\'s current stats, mood, activity, and position. Call this to check how he\'s doing.',
+    'Get the dude\'s current stats, mood, activity, and position. Includes warnings if any stats are depleted (at 0) — depleted stats have gameplay consequences!',
     {},
     async () => {
       const status = getDudeStatus();
@@ -42,7 +42,11 @@ function createMcpServer(): McpServer {
     async (params) => {
       const result = startActivity(params.activity);
       if (!result.ok) return { content: [{ type: 'text' as const, text: `ERROR: ${result.error}` }] };
-      return { content: [{ type: 'text' as const, text: result.message! }] };
+      const warnings = getDepletionWarnings();
+      const text = warnings.length > 0
+        ? `${result.message!}\n\n${warnings.join('\n')}`
+        : result.message!;
+      return { content: [{ type: 'text' as const, text }] };
     },
   );
 
